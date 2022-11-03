@@ -118,5 +118,7 @@ await myService.doSomething()
 
 ```
 
+Enjoy!
+
 
 
