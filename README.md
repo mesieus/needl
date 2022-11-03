@@ -84,14 +84,17 @@ const createMyGreetingClient = () => ({
 const MyGreetingClient = {
     layer: MyClient.tag.bindTo()(createMyGreetingClient)
 }
-const createMyInMemDAO = (mem:string[]) => ({
-    async storeText(text:string){
-        mem.push(text)
+const createMyInMemDAO = () => {
+    const mem = []
+    return {
+        async storeText(text:string){
+            mem.push(text)
+        }
+        printMem(){
+            console.log(mem)
+        }
     }
-    printMem(){
-        console.log(mem)
-    }
-})
+}
 
 const MyInMemDAO = {
     layer: MyDAO.tag.bindTo()(createMyInMemDAO)
