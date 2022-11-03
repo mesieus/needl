@@ -120,5 +120,11 @@ await myService.doSomething()
 
 Enjoy!
 
+## Circular dependencies
+
+NOPE! Nor won't happen. If you need them, you probably have some serious design problems that you'd have to solve first.
+
+There's one very simple strategy to overcome such "limitation" (which I'd actually call feature), and maybe later I'll add some example
+
 
 
