@@ -23,13 +23,13 @@ const memoizedProvider = <T>(fn: Provider<T>): Provider<T> => {
   };
 };
 
-export type ModuleUses<Mod extends Module<any, never>> = Mod extends Module<
+export type LayerUses<Mod extends Layer<any, never>> = Mod extends Layer<
   infer Uses,
   never
 >
   ? Uses
   : any;
-export type ModuleMakes<Mod extends Module<any, never>> = Mod extends Module<
+export type LayerMakes<Mod extends Layer<any, never>> = Mod extends Layer<
   any,
   infer Makes
 >
@@ -41,27 +41,27 @@ export type ModuleMakes<Mod extends Module<any, never>> = Mod extends Module<
  * the underlying backing type is an async function that goes from input
  * to Output
  */
-export class Module<
+export class Layer<
   out Uses, //inveresed variance works better
   in Makes
 > {
   constructor(readonly bindings: TaggedBinding<Tag<unknown>[], unknown>[]) {}
 
   /**
-   * This concatenates two modules
+   * This concatenates two layers
    * where the second depends on the first
    * @param other
    * @returns
    */
   join<Uses2, Makes2>(
-    other: Module<Uses2, Makes2>
-  ): Module<Uses | Exclude<Uses2, Makes>, Makes | Makes2> {
-    return new Module([...this.bindings, ...other.bindings]);
+    other: Layer<Uses2, Makes2>
+  ): Layer<Uses | Exclude<Uses2, Makes>, Makes | Makes2> {
+    return new Layer([...this.bindings, ...other.bindings]);
   }
   apply(app: Container<Uses>): Container<Makes> {
-    const module: Module<Uses, Makes> = this;
+    const layer: Layer<Uses, Makes> = this;
     let rawContainer = app.raw;
-    for (const binding of module.bindings) {
+    for (const binding of layer.bindings) {
       const currentContainer = rawContainer;
 
       if (binding.override || !(binding.tag.key in rawContainer)) {
@@ -89,7 +89,7 @@ export class Module<
     }
     return new Container(rawContainer);
   }
-  static empty = new Module<never, never>([]);
+  static empty = new Layer<never, never>([]);
 }
 
 /**
@@ -165,7 +165,7 @@ export class Tag<Of> {
   ): (
     creator: Creator<Vals<Deps>, Of>,
     override?: boolean
-  ) => Module<UniteTags<Deps>, Tag<Of>> {
+  ) => Layer<UniteTags<Deps>, Tag<Of>> {
     return (creator, override) => {
       const tbinding: TaggedBinding<Deps, Of> = {
         tag: this,
@@ -179,7 +179,7 @@ export class Tag<Of> {
         creator: tbinding.creator as Creator<unknown[], unknown>,
         override: tbinding.override,
       };
-      return new Module([ubinding]);
+      return new Layer([ubinding]);
     };
   }
 }
@@ -243,22 +243,22 @@ const stringTag = newTag<string>("string");
 const booleanTag = newTag<boolean>("boolean");
 
 
-const numberModule1 = numberTag.module()(() => 3);
-const booleanModule1 = booleanTag.module(
+const numberLayer1 = numberTag.layer()(() => 3);
+const booleanLayer1 = booleanTag.layer(
   numberTag,
   stringTag
 )((number, string) => true);
-const stringModule1 = stringTag.module()(() => "Hola");
+const stringLayer1 = stringTag.layer()(() => "Hola");
 
-numberModule1.compose(booleanModule1); //this should fail to compile
-numberModule1.compose(stringModule1); //this should compile
-numberModule1.compose(stringModule1).compose(booleanModule1); // this should compile
+numberLayer1.compose(booleanLayer1); //this should fail to compile
+numberLayer1.compose(stringLayer1); //this should compile
+numberLayer1.compose(stringLayer1).compose(booleanLayer1); // this should compile
 
-emptyContainer.withModule(booleanModule1); //this should fail to compile
-emptyContainer.withModule(stringModule1).withModule(booleanModule1); // this should fail to compile
+emptyContainer.withLayer(booleanLayer1); //this should fail to compile
+emptyContainer.withLayer(stringLayer1).withLayer(booleanLayer1); // this should fail to compile
 emptyContainer
-  .withModule(stringModule1)
-  .withModule(numberModule1)
-  .withModule(booleanModule1); // this should compile
+  .withLayer(stringLayer1)
+  .withLayer(numberLayer1)
+  .withLayer(booleanLayer1); // this should compile
 
 */
