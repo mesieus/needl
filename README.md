@@ -24,7 +24,7 @@ That ends up in two big problems:
 
 Needl has been developed with 2 main goals:
 
-1. Easy to adopt
+1. Easy to adopt (specially for big codebases)
 2. Typesafe
 3. Ergonomic
 4. Support for async constructors
@@ -36,6 +36,84 @@ Needl has been developed with 2 main goals:
 ### Step 1: Declare your injectables
 
 ```typescript
-``` 
+
+type MyService = {
+    doSomething()
+}
+type MyDAO = {
+    storeText(text:string):Promise<void>
+}
+type MyClient = {
+    consultText():Promise<string>
+}
+```
+Needl needs tags as identifiers at runtime. These tags are typesafe...
+
+```typescript
+const MyService = {
+    tag: newTag<MyService>("MyService")
+}
+const MyDAO = {
+    tag: newTag<MyDAO>("MyDAO")
+}
+const MyClient = {
+    tag: newTag<MyClient>("MyClient")
+}
+```
+### Step 2: Implement and declare dependencies
+
+```typescript
+
+class MyDefaultService extends MyService{
+    constructor(myDAO:MyDAO, myClient:MyClient){
+        this.myDAO = myDAO
+        this.myClient = myClient
+    }
+    async doSomething(){
+        const text = await this.myClient.consultText()
+        await this.myDAO.storeText(text)
+    }
+    static layer = MyService.tag.bindTo(MyDAO.tag,MyClient.tag)(
+        (myDAO,myClient) => new MyDefaultService(myDAO,myClient)
+    )
+}
+
+const createMyGreetingClient = () => ({
+    consultText: async () => "Hello World"
+})
+const MyGreetingClient = {
+    layer: MyClient.tag.bindTo()(createMyGreetingClient)
+}
+const createMyInMemDAO = (mem:string[]) => ({
+    async storeText(text:string){
+        mem.push(text)
+    }
+    printMem(){
+        console.log(mem)
+    }
+})
+
+const MyInMemDAO = {
+    layer: MyDAO.tag.bindTo()(createMyInMemDAO)
+}
+
+```
+
+### Step 3: Configure Container
+
+```typescript
+const myContainer = MyInMemDAO.layer
+    .concat(MyGreetingClient.layer)
+    .concat(MyDefaultService.layer)
+    .apply(Container.empty)
+
+const myService = await myContainer.get(MyService.tag)
+const myDAO = await myContainer.get(MyDAO.tag)
+await myService.doSomething()
+
+(myDAO as any).printMem() // prints ["Hello World"]
+
+```
+
 
 
