@@ -102,7 +102,7 @@ const MyInMemDAO = {
 
 ```
 
-### Step 3: Configure Container
+### Step 3: Configure Container and resolve dependencies!
 
 ```typescript
 const myContainer = MyInMemDAO.layer
