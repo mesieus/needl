@@ -1,14 +1,13 @@
-
 type Provider<T> = () => Promise<T>;
 
-type Binding<Deps extends Tag<any>[], T> = {
+type Binding<Deps extends Id<any>[], T> = {
   override: boolean;
   deps: Deps;
   creator: Creator<Vals<Deps>, T>;
 };
-type TaggedBinding<Deps extends Tag<any>[], T> = Binding<Deps, T> & {
+type BindingWithId<Deps extends Id<any>[], T> = Binding<Deps, T> & {
   override: boolean;
-  tag: Tag<T>;
+  id: Id<T>;
 };
 
 const memoizedProvider = <T>(fn: Provider<T>): Provider<T> => {
@@ -45,7 +44,7 @@ export class Layer<
   out Uses, //inveresed variance works better
   in Makes
 > {
-  constructor(readonly bindings: TaggedBinding<Tag<unknown>[], unknown>[]) {}
+  constructor(readonly bindings: BindingWithId<Id<unknown>[], unknown>[]) {}
 
   /**
    * This concatenates two layers
@@ -64,26 +63,26 @@ export class Layer<
     for (const binding of layer.bindings) {
       const currentContainer = rawContainer;
 
-      if (binding.override || !(binding.tag.key in rawContainer)) {
+      if (binding.override || !(binding.id.key in rawContainer)) {
         const provider = memoizedProvider(async () => {
-          console.log(`requesting component ${binding.tag.name}`);
+          console.log(`requesting component ${binding.id.name}`);
           const deps = await Promise.all(
-            binding.deps.map((tag) => {
-              if (tag.key in currentContainer) {
-                return currentContainer[tag.key];
+            binding.deps.map((id) => {
+              if (id.key in currentContainer) {
+                return currentContainer[id.key]();
               } else
                 throw new Error(
-                  `Requested ${tag.name}, but it is not in container`
+                  `Requested ${id.name}, but it is not in container`
                 );
             })
           );
           const component = await Promise.resolve(binding.creator(...deps));
-          console.log(`component ${binding.tag.name} was created`);
+          console.log(`component ${binding.id.name} was created`);
           return component;
         });
         rawContainer = {
           ...currentContainer,
-          [binding.tag.key]: provider,
+          [binding.id.key]: provider,
         };
       }
     }
@@ -104,10 +103,10 @@ export class Container<in Of> {
   take(of: Of) {
     throw new Error();
   }
-  async get<T>(tag: Of extends Tag<T> ? Tag<T> : never): Promise<T> {
-    if (tag.key in this.raw) {
-      return this.raw[tag.key]() as Promise<T>;
-    } else throw new Error(`Requested ${tag.name}, but it is not in container`);
+  async get<T>(id: Of extends Id<T> ? Id<T> : never): Promise<T> {
+    if (id.key in this.raw) {
+      return this.raw[id.key]() as Promise<T>;
+    } else throw new Error(`Requested ${id.name}, but it is not in container`);
   }
   static empty: Container<never> = new Container({});
 }
@@ -118,63 +117,63 @@ export class Container<in Of> {
  */
 type Creator<From extends any[], To> = (...deps: From) => Promise<To> | To;
 /**
- * A type-level function that unwraps Tags...
- *  TagToParam<Tag<X>> => X
- *  Is the inverse of Tag<X>
+ * A type-level function that unwraps Ids...
+ *  IdToParam<Id<X>> => X
+ *  Is the inverse of Id<X>
  */
-type Val<T extends Tag<any>> = T extends Tag<infer Of> ? Of : never;
+type Val<T extends Id<any>> = T extends Id<infer Of> ? Of : never;
 /**
- * Unwraps a tuple of tags
- * ie [Tag<A>,Tag<B>] => [A, B]
+ * Unwraps a tuple of ids
+ * ie [Id<A>,Id<B>] => [A, B]
  */
-type Vals<Tags extends Tag<any>[]> = Tags extends [
-  infer Head extends Tag<any>,
-  ...infer Tail extends Tag<any>[]
+type Vals<Ids extends Id<any>[]> = Ids extends [
+  infer Head extends Id<any>,
+  ...infer Tail extends Id<any>[]
 ]
   ? [Val<Head>, ...Vals<Tail>]
-  : Tags extends []
+  : Ids extends []
   ? []
-  : Tags extends Tag<infer C>[]
+  : Ids extends Id<infer C>[]
   ? C[]
   : never;
 
-type UniteTags<Tags extends Tag<any>[]> = Tags extends [
-  infer Head extends Tag<any>,
-  ...infer Tail extends Tag<any>[]
+type UniteIds<Ids extends Id<any>[]> = Ids extends [
+  infer Head extends Id<any>,
+  ...infer Tail extends Id<any>[]
 ]
-  ? Head | UniteTags<Tail>
-  : Tags extends never[]
+  ? Head | UniteIds<Tail>
+  : Ids extends never[]
   ? never
-  : Tags extends Tag<infer C>[]
-  ? Tag<C>
+  : Ids extends Id<infer C>[]
+  ? Id<C>
   : never;
 
 /**
  * The core behind this DI system
- * Every tag is backed by a symbol that is used to add
+ * Every id is backed by a symbol that is used to add
  * dependencies to the DI container, and also get them out of the DI container.
  */
-export class Tag<Of> {
+export class Id<Of> {
   readonly key: symbol;
   constructor(readonly name: string) {
     this.key = Symbol(name);
   }
 
-  bindTo<Deps extends Tag<any>[]>(
+  bindTo<Deps extends Id<any>[]>(
     ...deps: Deps
   ): (
     creator: Creator<Vals<Deps>, Of>,
     override?: boolean
-  ) => Layer<UniteTags<Deps>, Tag<Of>> {
+  ) => Layer<UniteIds<Deps>, Id<Of>> {
     return (creator, override) => {
-      const tbinding: TaggedBinding<Deps, Of> = {
-        tag: this,
+      const tbinding: BindingWithId<Deps, Of> = {
+        id: this,
         deps,
         creator,
         override: !!override,
       };
-      const ubinding: TaggedBinding<Tag<unknown>[], unknown> = {
-        tag: tbinding.tag as Tag<unknown>,
+      const ubinding: BindingWithId<Id<unknown>[], unknown> = {
+        id: tbinding.id as Id<unknown>,
         deps: tbinding.deps,
         creator: tbinding.creator as Creator<unknown[], unknown>,
         override: tbinding.override,
@@ -188,7 +187,7 @@ export class Tag<Of> {
  *
  * @returns
  */
-export const newTag = <S>(name: string) => new Tag<S>(name);
+export const newId = <S>(name: string) => new Id<S>(name);
 
 // === Experimental ideas, please do not delete
 /**
@@ -203,13 +202,13 @@ class As<out T> {
 
 const as = <T>(name: string): As<T> => new As<T>(name);
 
-const globalRegistry: Record<symbol, Tag2<symbol, any>> = {};
+const globalRegistry: Record<symbol, Id2<symbol, any>> = {};
 
-class Tag2<Key extends symbol, Component> {
+class Id2<Key extends symbol, Component> {
   constructor(public readonly key: Key, private readonly as: As<Component>) {
     if (key in globalRegistry) {
       throw new Error(
-        "There's already a tag for this symbol: " + globalRegistry[key]
+        "There's already a id for this symbol: " + globalRegistry[key]
       );
     } else {
       globalRegistry[key] = this;
@@ -232,23 +231,23 @@ class Tag2<Key extends symbol, Component> {
   }
 }
 
-const newTag2 = <Key extends symbol, Component>(key: Key, as: As<Component>) =>
-  new Tag2(key, as);
+const newId2 = <Key extends symbol, Component>(key: Key, as: As<Component>) =>
+  new Id2(key, as);
 
 /*
 // IF YOU MODIFY THIS FILE, UNCOMMENT THIS 
 // AND CHECK IF COMMENTS BELOW FIT THE COMPILER BEHAVIOUR
-const numberTag = newTag<number>("number");
-const stringTag = newTag<string>("string");
-const booleanTag = newTag<boolean>("boolean");
+const numberId = newId<number>("number");
+const stringId = newId<string>("string");
+const booleanId = newId<boolean>("boolean");
 
 
-const numberLayer1 = numberTag.layer()(() => 3);
-const booleanLayer1 = booleanTag.layer(
-  numberTag,
-  stringTag
+const numberLayer1 = numberId.layer()(() => 3);
+const booleanLayer1 = booleanId.layer(
+  numberId,
+  stringId
 )((number, string) => true);
-const stringLayer1 = stringTag.layer()(() => "Hola");
+const stringLayer1 = stringId.layer()(() => "Hola");
 
 numberLayer1.compose(booleanLayer1); //this should fail to compile
 numberLayer1.compose(stringLayer1); //this should compile
